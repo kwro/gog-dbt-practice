@@ -1,0 +1,20 @@
+# docker-compose.yml
+version: '3.8' 
+
+services:
+  
+  postgres_db:
+    image: postgres:16 
+    container_name: dbt_project_postgres_db 
+    restart: unless-stopped 
+    environment:
+      POSTGRES_DB: gogdb       
+      POSTGRES_USER: dev        
+      POSTGRES_PASSWORD: dev 
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:
