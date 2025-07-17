@@ -32,5 +32,16 @@ clean-targets:         # directories to be removed by `dbt clean`
 models:
   gog:
     # Config indicated by + and applies to all files under models/example/
-    example:
+    staging:
       +materialized: view
+    dimensions:
+      +materialized: table
+
+seeds:
+  gog:
+    target: dev_raw
+    +schema: raw
+    raw_transactions:
+      +alias: transaction_data
+    exchange_rates:
+      +alias: daily_exchange_rates

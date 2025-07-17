@@ -1,0 +1,170 @@
+version: 2
+
+sources:
+  - name: gog_raw
+    database: gogdb
+    schema: public_raw
+    description: "Surowe dane transakcyjne i pomocnicze z platformy GOG."
+
+    tables:
+      - name: raw_transactions
+        identifier: transaction_data
+        description: "Surowe dane dotyczące wszystkich transakcji."
+        columns:
+          - name: transaction_id
+            description: "Unikalny identyfikator transakcji."
+            tests:
+              - unique
+              - not_null
+          - name: user_id
+            description: "Identyfikator użytkownika, który dokonał transakcji."
+            tests:
+              - not_null
+          - name: game_id
+            description: "Identyfikator gry powiązanej z transakcją."
+            tests:
+              - not_null
+              - relationships:
+                  to: source('gog_raw', 'game_metadata')
+                  field: game_id
+                  severity: warn
+          - name: transaction_date
+            description: "Data, w której transakcja miała miejsce (YYYY-MM-DD)."
+            tests:
+              - not_null
+          - name: amount
+            description: "Wartość transakcji w oryginalnej walucie. Może być wartością dziesiętną."
+            tests:
+              - not_null
+              - dbt_expectations.expect_column_values_to_be_of_type:
+                  column_type: numeric
+                  severity: warn
+              - dbt_expectations.expect_column_values_to_be_between:
+                  min_value: 0
+          - name: currency
+            description: "Trzyliterowy kod waluty transakcji (np. JPY, GBP, CAD, USD)."
+            tests:
+              - not_null
+              - accepted_values:
+                  values: [ 'JPY', 'GBP', 'CAD', 'USD', 'PLN', 'EUR' ]
+          - name: payment_method
+            description: "Metoda płatności użyta w transakcji (np. Credit Card, GOG Wallet, PayPal, Paysafecard, Bank Transfer)."
+            tests:
+              - not_null
+              - accepted_values:
+                  values: [ 'Credit Card', 'GOG Wallet', 'PayPal', 'Paysafecard', 'Bank Transfer' ]
+          - name: product_type
+            description: "Typ produktu sprzedanego w transakcji (np. Game, Subscription, Expansion, Bundle, DLC)."
+            tests:
+              - not_null
+              - accepted_values:
+                  values: [ 'Game', 'Subscription', 'Expansion', 'Bundle', 'DLC', 'In-game Item' ]
+        loaded_at_field: transaction_date
+        freshness:
+          warn_after: {count: 1, period: day}
+          error_after: {count: 3, period: day}
+      - name: exchange_rates
+        identifier: daily_exchange_rates
+        description: "Dzienne kursy wymiany walut."
+        columns:
+          - name: date
+            description: "Data obowiązywania kursu wymiany (YYYY-MM-DD)."
+            tests:
+              - not_null
+          - name: currency_from
+            description: "Trzyliterowy kod waluty źródłowej (np. USD, EUR, GBP)."
+            tests:
+              - not_null
+              - accepted_values:
+                  values: [ 'USD', 'EUR', 'GBP', 'JPY', 'CAD', 'CHF' ]
+          - name: currency_to
+            description: "Trzyliterowy kod waluty docelowej (np. PLN). Zgodnie z danymi, jest to zawsze PLN."
+            tests:
+              - not_null
+          - name: rate
+            description: "Kurs wymiany. Liczba dziesiętna."
+            tests:
+              - not_null
+              - dbt_expectations.expect_column_values_to_be_of_type:
+                  column_type: numeric
+                  severity: warn
+              - dbt_expectations.expect_column_values_to_be_between:
+                  min_value: 0.0001
+        tests:
+          - dbt_utils.unique_combination_of_columns:
+              combination_of_columns:
+                - date
+                - currency_from
+                - currency_to
+        loaded_at_field: date
+        freshness:
+          warn_after: { count: 14, period: day }
+          error_after: { count: 30, period: day }
+      - name: game_metadata
+        description: "Metadane gier."
+        columns:
+          - name: game_id
+            description: "Unikalny identyfikator gry."
+            tests:
+              - unique
+              - not_null
+          - name: game_title
+            description: "Tytuł gry."
+            tests:
+              - not_null
+          - name: genre
+            description: "Gatunek gry (np. Strategy, Racing, Action, FPS, Puzzle, Adventure)."
+            tests:
+              - not_null
+              - accepted_values:
+                  values: [ 'Strategy', 'Racing', 'Action', 'FPS', 'Puzzle', 'Adventure', 'RPG', 'Simulation', 'Indie', 'Sports' ]
+          - name: developer
+            description: "Deweloper gry."
+          - name: release_date
+            description: "Data wydania gry w formacie DD-MM-YYYY."
+            tests:
+              - not_null
+      - name: psp_transactions
+        description: "Dane transakcyjne otrzymane bezpośrednio od dostawcy usług płatniczych."
+        columns:
+          - name: psp_transaction_id
+            description: "Unikalny identyfikator transakcji u dostawcy PSP."
+            tests:
+              - unique
+              - not_null
+          - name: original_transaction_id
+            description: "Identyfikator transakcji."
+            tests:
+              # Możesz dodać test relationships do raw_transactions.transaction_id.
+              # Pamiętaj, że ten test sprawdzi, czy oryginal_transaction_id istnieje w raw_transactions.
+              # Jeśli masz w nim null'e lub IDs, które celowo nie mają match'a (np. testowe dane PSP),
+              # to ten test może się nie powieść.
+              - relationships:
+                  to: source('gog_raw', 'raw_transactions')
+                  field: transaction_id
+          - name: psp_amount
+            description: "Kwota transakcji zarejestrowana przez PSP w walucie PSP."
+            tests:
+              - not_null
+              - dbt_expectations.expect_column_values_to_be_of_type:
+                  column_type: numeric
+                  severity: warn
+              - dbt_expectations.expect_column_values_to_be_between:
+                  min_value: 0
+          - name: psp_currency
+            description: "Trzyliterowy kod waluty transakcji zarejestrowanej przez PSP (np. USD, PLN, EUR, CAD, JPY)."
+            tests:
+              - not_null
+              # Jeśli chcesz, możesz tutaj też użyć relationships do dim_currencies
+              - accepted_values:
+                  values: [ 'USD', 'PLN', 'EUR', 'CAD', 'JPY', 'GBP' ]
+          - name: psp_timestamp
+            description: "Data i czas transakcji zarejestrowanej przez PSP (YYYY-MM-DD HH:MM:SS)."
+            tests:
+              - not_null
+          - name: status
+            description: "Status transakcji PSP (np. SUCCESS, PENDING, FAILED, CANCELLED)."
+            tests:
+              - not_null
+              - accepted_values:
+                  values: [ 'SUCCESS', 'FAILED', 'PENDING', 'CANCELLED' ]

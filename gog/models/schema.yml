@@ -1,0 +1,224 @@
+version: 2
+
+models:
+  - name: stg_daily_exchange_rates
+    description: "Wyczyszczone i ustandaryzowane dane dotyczące dziennych kursów wymiany walut."
+    config:
+      materialized: view
+    columns:
+      - name: exchange_date
+        description: "Data obowiązywania kursu wymiany po czyszczeniu (YYYY-MM-DD)."
+        tests:
+          - not_null
+      - name: currency_from
+        description: "Trzyliterowy kod waluty źródłowej."
+        tests:
+          - not_null
+          - accepted_values:
+              values: [ 'USD', 'EUR', 'GBP', 'JPY', 'CAD', 'CHF' ]
+      - name: currency_to
+        description: "Trzyliterowy kod waluty docelowej po czyszczeniu."
+        tests:
+          - not_null
+      - name: rate
+        description: "Kurs wymiany walut zaokrąglony do 4 miejsc po przecinku."
+        tests:
+          - not_null
+          - dbt_expectations.expect_column_values_to_be_between:
+              min_value: 0.0001
+
+    tests: # Testy dla całego modelu stagingowego
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - exchange_date
+            - currency_from
+            - currency_to
+  - name: stg_transactions
+    description: "Wyczyszczone dane transakcyjne, z game_id walidowanymi w stosunku do game_metadata."
+    config:
+      materialized: view
+    loaded_at_field: transaction_date
+    freshness:
+      warn_after: { count: 1, period: day }
+      error_after: { count: 3, period: day }
+    columns:
+      - name: transaction_id
+        description: "Unikalny i niepusty identyfikator transakcji."
+        tests:
+          - unique
+          - not_null
+      - name: user_id
+        description: "Identyfikator użytkownika powiązanego z transakcją."
+        tests:
+          - not_null
+      - name: game_id
+        description: "Identyfikator gry, gwarantowany, że istnieje w stg_game_metadata."
+        tests:
+          - not_null
+          - relationships:
+              to: ref('stg_game_metadata')
+              field: game_id
+              severity: error
+      - name: transaction_date
+        description: "Timestamp transakcji."
+        tests:
+          - not_null
+          - dbt_expectations.expect_column_values_to_be_of_type:
+              column_type: date
+      - name: amount
+        description: "Kwota transakcji."
+        tests:
+          - not_null
+          - dbt_expectations.expect_column_values_to_be_of_type:
+              column_type: double precision
+          - dbt_expectations.expect_column_values_to_be_between:
+              min_value: 0
+      - name: currency
+        description: "Trzyliterowy kod waluty transakcji (np. USD, PLN, EUR)."
+        tests:
+          - not_null
+          - accepted_values:
+              values: [ 'USD', 'PLN', 'EUR', 'GBP', 'JPY', 'CAD', 'CHF' ]
+      - name: payment_method
+        description: "Metoda płatności (np. 'Credit Card', 'PayPal')."
+        tests:
+          - not_null
+          - accepted_values:
+             values: [ 'Credit Card', 'GOG Wallet', 'PayPal', 'Paysafecard', 'Bank Transfer' ]
+      - name: product_type
+        description: "Typ zakupionego produktu (np. 'Game', 'DLC', 'Subscription')."
+        tests:
+          - not_null
+          - accepted_values:
+              values: [ 'Game', 'Subscription', 'Expansion', 'Bundle', 'DLC', 'In-game Item' ]
+  - name: stg_psp_transactions
+    description: "Staging model dla danych transakcyjnych PSP."
+    columns:
+      - name: psp_transaction_id
+        description: "Unikalny identyfikator transakcji u dostawcy PSP."
+        tests:
+          - unique
+          - not_null
+      - name: transaction_id
+        description: "Identyfikator transakcji."
+        tests:
+          - relationships:
+              to: source('gog_raw', 'raw_transactions')
+              field: transaction_id
+      - name: psp_amount
+        description: "Kwota transakcji zarejestrowana przez PSP w walucie PSP."
+        tests:
+          - not_null
+          - dbt_expectations.expect_column_values_to_be_of_type:
+              column_type: numeric
+          - dbt_expectations.expect_column_values_to_be_between:
+              min_value: 0
+      - name: psp_currency
+        description: "Trzyliterowy kod waluty transakcji zarejestrowanej przez PSP (np. USD, PLN, EUR, CAD, JPY)."
+        tests:
+          - not_null
+          - accepted_values:
+              values: [ 'USD', 'PLN', 'EUR', 'CAD', 'JPY', 'GBP' ]
+      - name: psp_timestamp
+        description: "Data i czas transakcji zarejestrowanej przez PSP (YYYY-MM-DD HH:MM:SS)."
+        tests:
+          - not_null
+          - dbt_expectations.expect_column_values_to_be_of_type:
+              column_type: timestamp without time zone
+      - name: status
+        description: "Status transakcji PSP (np. SUCCESS, PENDING, FAILED, CANCELLED)."
+        tests:
+          - not_null
+          - accepted_values:
+              values: [ 'SUCCESS', 'FAILED', 'PENDING', 'CANCELLED' ]
+  - name: dim_games
+    description: "Dimension table containing key game metadata for analytics purposes."
+    columns:
+      - name: game_key
+        description: "Unique game identifier (renamed from game_id)."
+        tests:
+          - unique
+          - not_null
+      - name: game_title
+        description: "The title of the game."
+        tests:
+          - not_null
+      - name: genre
+        description: "Genre of the game (e.g., Strategy, Racing, Action, FPS, Puzzle, Adventure)."
+        tests:
+          - not_null
+          - accepted_values:
+              values: [ 'Strategy', 'Racing', 'Action', 'FPS', 'Puzzle', 'Adventure', 'RPG', 'Simulation', 'Indie', 'Sports' ]
+      - name: developer
+        description: "Game developer."
+      - name: release_date
+        description: "Release date of the game as a DATE."
+        tests:
+          - not_null
+  - name: fact_daily_revenue
+    description: |
+      Faktowa tabela agregująca dzienne przychody (w PLN) z uwzględnieniem typu produktu, gatunku gry oraz metody płatności.
+    config:
+      materialized: incremental
+    columns:
+      - name: transaction_date
+        description: "Data transakcji (dzień)."
+        tests:
+          - not_null
+          - dbt_expectations.expect_column_values_to_be_of_type:
+              column_type: date
+      - name: product_type
+        description: "Typ zakupionego produktu (np. Game, Subscription, DLC)."
+        tests:
+          - not_null
+      - name: genre
+        description: "Gatunek gry powiązany z transakcją."
+        tests:
+          - not_null
+      - name: payment_method
+        description: "Metoda płatności użyta w transakcji (np. Credit Card, PayPal)."
+        tests:
+          - not_null
+      - name: total_revenue_pln
+        description: "Suma przychodów w PLN po przeliczeniu z oryginalnej waluty."
+
+  - name: marts__successful_transactions
+    description: "Final fact-like model joining transactions with PSP and exchange rates, converting all to PLN."
+    columns:
+      - name: transaction_id
+        description: "Unique identifier of the transaction."
+        tests:
+          - unique
+          - not_null
+      - name: user_id
+        description: "Identifier of the user who made the transaction."
+        tests:
+          - not_null
+      - name: game_id
+        description: "Identifier of the game linked to the transaction."
+        tests:
+          - not_null
+      - name: transaction_date
+        description: "Date of the transaction."
+        tests:
+          - not_null
+          - dbt_expectations.expect_column_values_to_be_of_type:
+              column_type: date
+      - name: payment_method
+        description: "Payment method used by the user (e.g., Credit Card, PayPal, etc.)."
+        tests:
+          - not_null
+          - accepted_values:
+              values: [ 'Credit Card', 'GOG Wallet', 'PayPal', 'Paysafecard', 'Bank Transfer' ]
+      - name: product_type
+        description: "Type of purchased product (e.g., Game, DLC, Subscription, etc.)."
+        tests:
+          - not_null
+          - accepted_values:
+              values: [ 'Game', 'Subscription', 'Expansion', 'Bundle', 'DLC', 'In-game Item' ]
+      - name: amount_pln
+        description: "Transaction amount converted to PLN."
+        tests:
+          - not_null
+          - dbt_expectations.expect_column_values_to_be_between:
+              min_value: 0

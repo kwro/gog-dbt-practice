@@ -83,6 +83,8 @@
         <option value="tests" />
       </list>
     </option>
+    <option name="dbtVersionMajor" value="1" />
+    <option name="dbtVersionMinor" value="9" />
     <option name="initialSettingsAreSet" value="true" />
     <option name="settingsDbtProjectDir" value="$PROJECT_DIR$" />
     <option name="settingsDbtTargetDir" value="$PROJECT_DIR$/target" />
