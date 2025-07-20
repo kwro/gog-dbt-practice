@@ -36,6 +36,8 @@ models:
       +materialized: view
     dimensions:
       +materialized: table
+    marts:
+      +materialized: view
 
 seeds:
   gog:
@@ -45,3 +47,7 @@ seeds:
       +alias: transaction_data
     exchange_rates:
       +alias: daily_exchange_rates
+
+vars:
+  core_products: ["Game", "Bundle"]
+  addon_products: ["DLC", "Expansion", "In-game Item", "Subscription"]

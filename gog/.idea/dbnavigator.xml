@@ -19,22 +19,31 @@
   <component name="DBNavigator.Project.DatabaseBrowserManager">
     <autoscroll-to-editor value="false" />
     <autoscroll-from-editor value="true" />
-    <show-object-properties value="true" />
+    <show-object-properties value="false" />
     <loaded-nodes />
   </component>
   <component name="DBNavigator.Project.DatabaseConsoleManager">
     <connection id="83f5b830-1dc3-4436-834f-ed6639cc7a1c">
-      <console name="gog" type="STANDARD" schema="postgres" session="Main" />
+      <console name="gog" type="STANDARD" schema="postgres" session="Main"><![CDATA[select * from "public".marts_reconcile_raw_transactions_vs_psp_transactions
+
+select count(*) from "public".stg_psp_transactions]]></console>
     </connection>
   </component>
   <component name="DBNavigator.Project.DatabaseEditorStateManager">
-    <last-used-providers />
+    <last-used-providers>
+      <object-type object-type="VIEW" editor-provider="CODE" />
+    </last-used-providers>
   </component>
   <component name="DBNavigator.Project.DatabaseFileManager">
-    <open-files />
+    <open-files>
+      <object connection-id="83f5b830-1dc3-4436-834f-ed6639cc7a1c" object-ref="consoles/gog" />
+    </open-files>
   </component>
   <component name="DBNavigator.Project.DatabaseSessionManager">
     <connection id="83f5b830-1dc3-4436-834f-ed6639cc7a1c" />
+  </component>
+  <component name="DBNavigator.Project.DatasetFilterManager">
+    <filter-actions connection-id="83f5b830-1dc3-4436-834f-ed6639cc7a1c" dataset="public.marts_reconcile_raw_transactions_vs_psp_transactions" active-filter-id="" />
   </component>
   <component name="DBNavigator.Project.ExecutionManager">
     <retain-sticky-names value="false" />
