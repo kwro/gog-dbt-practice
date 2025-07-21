@@ -55,11 +55,11 @@ joined as (
         psp.psp_currency,
         psp.psp_timestamp,
         e.exchange_rate,
-        t.amount * case when t.currency = 'PLN' then 1 else e.exchange_rate end as amount_pln,
         g.game_title,
         g.genre,
         g.developer,
-        g.release_date
+        g.release_date,
+        t.amount * case when t.currency = 'PLN' then 1 else e.exchange_rate end as amount_pln
     from transactions as t
     inner join successful_psp as psp
         on t.transaction_id = psp.transaction_id

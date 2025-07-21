@@ -123,4 +123,3 @@ select
     not_recognised_transactions,
     not_recognised_psp_transactions
 from final
-

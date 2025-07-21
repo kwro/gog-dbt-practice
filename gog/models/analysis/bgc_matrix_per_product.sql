@@ -68,17 +68,20 @@ market_growth as (
         game_title,
         genre,
         product_type,
-        sum(case when transaction_month >= (current_date - interval '12 months') then total_amount_pln else 0 end) as amount_last_12m,
-        sum(case when transaction_month < (current_date - interval '12 months') then total_amount_pln else 0 end) as amount_prev_12m,
+        sum(
+            case when transaction_month >= (current_date - interval '12 months') then total_amount_pln else 0 end
+        ) as amount_last_12m,
+        sum(
+            case when transaction_month < (current_date - interval '12 months') then total_amount_pln else 0 end
+        ) as amount_prev_12m,
         sum(total_amount_pln) as total_amount_last_24m
     from aggregated
     group by
-        1,2,3,4
+        1, 2, 3, 4
 ),
 
 market_totals as (
-    select
-        sum(total_amount_pln) as total_market_sales_24m
+    select sum(total_amount_pln) as total_market_sales_24m
     from aggregated
 ),
 
@@ -90,12 +93,12 @@ final as (
         mg.product_type,
         mg.amount_last_12m,
         mg.amount_prev_12m,
+        mg.total_amount_last_24m,
+        total_market_sales_24m,
         case
             when mg.amount_prev_12m = 0 then null
             else (mg.amount_last_12m / mg.amount_prev_12m) - 1
         end as market_growth_pct,
-        mg.total_amount_last_24m,
-        total_market_sales_24m,
         mg.total_amount_last_24m / nullif(mt.total_market_sales_24m, 0) as market_share_pct
     from market_growth as mg
     cross join market_totals as mt
