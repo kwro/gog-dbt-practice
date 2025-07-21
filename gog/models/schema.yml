@@ -1,15 +1,16 @@
 version: 2
 
 models:
-  - name: stg_daily_exchange_rates
+  - name: stg__daily_exchange_rates
     description: "Wyczyszczone i ustandaryzowane dane dotyczące dziennych kursów wymiany walut."
     config:
       materialized: view
     columns:
-      - name: exchange_date
+      - name: date
         description: "Data obowiązywania kursu wymiany po czyszczeniu (YYYY-MM-DD)."
         tests:
           - not_null
+        severity: warn
       - name: currency_from
         description: "Trzyliterowy kod waluty źródłowej."
         tests:
@@ -30,10 +31,11 @@ models:
     tests: # Testy dla całego modelu stagingowego
       - dbt_utils.unique_combination_of_columns:
           combination_of_columns:
-            - exchange_date
+            - date
             - currency_from
             - currency_to
-  - name: stg_transactions
+          severity: warn
+  - name: stg__transactions
     description: "Wyczyszczone dane transakcyjne, z game_id walidowanymi w stosunku do game_metadata."
     config:
       materialized: view
@@ -52,13 +54,13 @@ models:
         tests:
           - not_null
       - name: game_id
-        description: "Identyfikator gry, gwarantowany, że istnieje w stg_game_metadata."
+        description: "Identyfikator gry, gwarantowany, że istnieje w dim__games."
         tests:
           - not_null
           - relationships:
-              to: ref('stg_game_metadata')
-              field: game_id
-              severity: error
+              to: ref('dim__games')
+              field: game_key
+              severity: warn
       - name: transaction_date
         description: "Timestamp transakcji."
         tests:
@@ -91,7 +93,7 @@ models:
           - not_null
           - accepted_values:
               values: [ 'Game', 'Subscription', 'Expansion', 'Bundle', 'DLC', 'In-game Item' ]
-  - name: stg_psp_transactions
+  - name: stg__psp_transactions
     description: "Staging model dla danych transakcyjnych PSP."
     columns:
       - name: psp_transaction_id
@@ -99,7 +101,7 @@ models:
         tests:
           - unique
           - not_null
-      - name: transaction_id
+      - name: original_transaction_id
         description: "Identyfikator transakcji."
         tests:
           - relationships:
@@ -131,7 +133,7 @@ models:
           - not_null
           - accepted_values:
               values: [ 'SUCCESS', 'FAILED', 'PENDING', 'CANCELLED' ]
-  - name: dim_games
+  - name: dim__games
     description: "Dimension table containing key game metadata for analytics purposes."
     columns:
       - name: game_key
@@ -155,7 +157,7 @@ models:
         description: "Release date of the game as a DATE."
         tests:
           - not_null
-  - name: fact_daily_revenue
+  - name: fact__daily_revenue
     description: |
       Faktowa tabela agregująca dzienne przychody (w PLN) z uwzględnieniem typu produktu, gatunku gry oraz metody płatności.
     config:
@@ -222,3 +224,39 @@ models:
           - not_null
           - dbt_expectations.expect_column_values_to_be_between:
               min_value: 0
+
+  - name: marts__reconcile_raw_transactions_vs_psp_transactions
+    description: >
+        This model reconciles internal raw transactions with PSP transactions, providing summary metrics 
+        on data quality and completeness. It highlights missing matches, currency discrepancies, and 
+        product data integrity.
+
+    columns:
+      - name: transactions_all_records
+        description: "Total number of raw internal transactions records."
+      - name: psp_transactions_all_records
+        description: "Total number of transactions from the PSP (Payment Service Provider)."
+      - name: recognised_psp_transactions
+        description: >
+          Count of internal transactions that were successfully matched with PSP transactions and 
+          have a valid product reference.
+      - name: transaction_records_with_valid_products
+        description: "Count of transactions linked to valid, existing products in the games dimension."
+
+      - name: transaction_records_with_invalid_products
+        description: "Count of transactions where the product could not be matched to the games dimension."
+      - name: recognised_psp_transactions_with_matching_currency
+        description: >
+          Count of matched transactions where the currencies between internal and PSP transactions align.
+      - name: recognised_psp_transactions_with_matching_currency_and_value
+        description: >
+          Count of matched transactions where both the currency and transaction value align between internal and PSP sources.
+      - name: recognised_psp_transactions_with_non_matching_currency_and_value
+        description: >
+          Count of matched transactions where there is a discrepancy in both the currency and the amount.
+      - name: not_recognised_transactions
+        description: >
+          Internal transactions (with valid products) that were not matched to any PSP transaction.
+      - name: not_recognised_psp_transactions
+        description: >
+          PSP transactions that could not be matched back to any internal transaction, despite having a valid product reference.

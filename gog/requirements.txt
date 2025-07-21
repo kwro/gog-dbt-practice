@@ -1,0 +1,5 @@
+dbt-core==1.8.1
+dbt-postgres==1.8.1
+sqlfluff==3.0.7
+sqlfluff-templater-dbt==3.0.7
+pre-commit

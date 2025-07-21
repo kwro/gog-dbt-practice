@@ -48,6 +48,10 @@ seeds:
     exchange_rates:
       +alias: daily_exchange_rates
 
+on-run-end:
+  - "{{ reconciliation_summary() }}"
+
 vars:
-  core_products: ["Game", "Bundle"]
-  addon_products: ["DLC", "Expansion", "In-game Item", "Subscription"]
+  core_pc_products: ["Game", "Bundle"]
+  core_online_products: ["Subscription"]
+  addon_products: ["In-game Item", "Expansion", "DLC"]

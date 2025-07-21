@@ -1,0 +1,8 @@
+repos:
+  - repo: https://github.com/sqlfluff/sqlfluff
+    rev: 2.3.3  # lub inna aktualna wersja
+    hooks:
+      - id: sqlfluff-lint
+        args: [--dialect=postgres, --templater=dbt, models/]
+      - id: sqlfluff-fix
+        args: [--dialect=postgres, --templater=dbt, models/]

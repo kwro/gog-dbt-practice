@@ -5,7 +5,7 @@ with successful_psp as (
         psp_amount,
         psp_currency,
         psp_timestamp
-    from {{ ref('stg_psp_transactions') }}
+    from {{ ref('stg__psp_transactions') }}
     where status = 'SUCCESS'
 ),
 
@@ -14,7 +14,7 @@ exchange_rates as (
         "date" as exchange_date,
         currency_from,
         rate as exchange_rate
-    from {{ ref('stg_daily_exchange_rates') }}
+    from {{ ref('stg__daily_exchange_rates') }}
     where currency_to = 'PLN'
 ),
 
@@ -28,7 +28,17 @@ transactions as (
         t.currency,
         t.payment_method,
         t.product_type
-    from {{ ref('stg_transactions') }} t
+    from {{ ref('stg__transactions') }} as t
+),
+
+dim_games as (
+    select
+        game_key,
+        game_title,
+        genre,
+        developer,
+        release_date
+    from {{ ref('dim__games') }}
 ),
 
 joined as (
@@ -45,26 +55,34 @@ joined as (
         psp.psp_currency,
         psp.psp_timestamp,
         e.exchange_rate,
-        t.amount * CASE WHEN t.currency = 'PLN' THEN 1 ELSE e.exchange_rate END AS amount_pln
-    from transactions t
-    inner join successful_psp psp
+        t.amount * case when t.currency = 'PLN' then 1 else e.exchange_rate end as amount_pln,
+        g.game_title,
+        g.genre,
+        g.developer,
+        g.release_date
+    from transactions as t
+    inner join successful_psp as psp
         on t.transaction_id = psp.transaction_id
-    left join exchange_rates e
-        on t.transaction_date = e.exchange_date
-        and t.currency = e.currency_from
-),
-
-final as (
-    select
-        transaction_id,
-        user_id,
-        game_id,
-        transaction_date,
-        payment_method,
-        product_type,
-        amount_pln
-    from joined
+    inner join dim_games as g
+        on t.game_id = g.game_key
+    left join exchange_rates as e
+        on
+            t.transaction_date = e.exchange_date
+            and t.currency = e.currency_from
 )
 
-select * from final
-order by transaction_date DESC
+select
+    transaction_id,
+    user_id,
+    game_id,
+    genre,
+    game_title,
+    transaction_date,
+    amount,
+    currency,
+    payment_method,
+    product_type,
+    amount_pln,
+    release_date
+from joined
+order by 4 desc

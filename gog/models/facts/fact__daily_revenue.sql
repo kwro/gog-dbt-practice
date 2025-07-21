@@ -14,7 +14,7 @@ WITH transactions AS (
         amount_pln
     FROM {{ ref('marts__successful_transactions') }}
     {% if is_incremental() %}
-       WHERE transaction_date > (SELECT MAX(transaction_date) FROM {{ this }})
+        WHERE transaction_date > (SELECT MAX(transaction_date) FROM {{ this }})
     {% endif %}
 ),
 
@@ -22,7 +22,7 @@ games AS (
     SELECT
         game_key,
         genre
-    FROM {{ ref('dim_games') }}
+    FROM {{ ref('dim__games') }}
 ),
 
 transactions_with_genre AS (
@@ -32,8 +32,8 @@ transactions_with_genre AS (
         g.genre,
         t.payment_method,
         t.amount_pln
-    FROM transactions t
-    LEFT JOIN games g
+    FROM transactions AS t
+    LEFT JOIN games AS g
         ON t.game_id = g.game_key
 ),
 
@@ -55,4 +55,4 @@ SELECT
     payment_method,
     total_revenue_pln
 FROM daily_revenue
-ORDER BY transaction_date, product_type, genre, payment_method
+ORDER BY 1, 2, 3, 4

@@ -3,5 +3,5 @@ SELECT
     game_title,
     genre,
     developer,
-   release_date
+    release_date
 FROM {{ source('gog_raw', 'game_metadata') }}
